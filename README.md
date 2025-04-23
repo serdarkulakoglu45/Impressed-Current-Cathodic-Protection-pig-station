@@ -34,16 +34,7 @@ The simulation generates several visualizations:
 - Matplotlib
 - Pandas
 
-## Usage
 
-```python
-# Run the simulation and comparison
-python "Impressed Current Cathodic Protection pig.py"
-
-# Generate all result files
-python generate_results.py
-```
-Results
 
 
 
