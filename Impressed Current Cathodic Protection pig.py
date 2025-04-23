@@ -7,22 +7,22 @@ from copy import deepcopy
 class PigStationICCP:
     def __init__(self, design_type="original"):
         # Station components dimensions (meters)
-        self.launcher_length = 15.0
-        self.receiver_length = 15.0
+        self.launcher_length = 50.0  # Changed from 15.0 to 50.0
+        self.receiver_length = 50.0  # Changed from 15.0 to 50.0
         self.underground_pipeline_length = 50.0
         self.pipe_diameter = 1.219  # 48 inches converted to meters
 
         if design_type == "original":
             # Original anode positions
             self.anodes = {
-                'TR-A1': (10, 4),     # First point on receiver line
+                'TR-A1': (10, 3.5),     # First point on receiver line
                 'TR-A2': (30, 3.5),   # Middle point on receiver dip
-                'TR-A3': (35, 3.5),   # End of receiver dip
-                'TR-A4': (25, 2),     # On launcher line
-                'TR-A5': (35, 2),     # Before launcher bend
-                'TR-A6': (45, 2),     # On launcher end
-                'TR-A7': (55, 0),     # Disconnected point
-                'TR-A8': (40, 0)      # On underground pipeline vertical connection
+                'TR-A3': (35, 3),   # End of receiver dip
+                'TR-A4': (25, 1.5),     # On launcher line
+                'TR-A5': (35, 1.5),     # Before launcher bend
+                'TR-A6': (45, 1.5),     # On launcher end
+                'TR-A7': (50, 1),     # Disconnected point
+                'TR-A8': (40, -0.5)      # On underground pipeline vertical connection
             }
         else:
             # Optimized anode positions based on current distribution analysis
@@ -74,7 +74,7 @@ class PigStationICCP:
         self.ref_electrodes = {
             'Receiver': [5, 20, 35, 45],
             'Launcher': [5, 20, 35, 45],
-            'Underground': [10, 25, 40]
+            'Stationary': [10, 25, 40]
         }
 
         # Design type for labeling
@@ -93,12 +93,12 @@ class PigStationICCP:
         launcher_y = [2, 2, 2.5, 2, 2]
         ax.plot(launcher_x, launcher_y, 'g-', linewidth=2, label='Pig Launcher')
 
-        # Draw Underground Pipeline - in bird's eye view
+        # Draw Stationary Pipeline - in bird's eye view
         ax.plot([0, self.underground_pipeline_length], [0, 0], 'r-',
-                linewidth=2, label='Underground Pipeline')
+                linewidth=2, label='Stationary Pipeline')
 
-        # Draw vertical connection as a perpendicular line in bird's eye view
-        ax.plot([40, 40], [0, 4], 'k-', linewidth=2, label='Vertical Connection')
+        # Draw vertical section as part of Stationary Pipeline
+        ax.plot([40, 40], [0, 4], 'r-', linewidth=2)
 
         # Plot anodes with circles and dotted connection lines
         for anode_name, (x, y) in self.anodes.items():
@@ -160,9 +160,9 @@ class PigStationICCP:
             ((Y >= 3.5) & (Y <= 4.5) & (X <= 45)) |
             # Launcher pipeline
             ((Y >= 1.5) & (Y <= 2.5) & (X <= 45)) |
-            # Underground pipeline
+            # Stationary pipeline (horizontal)
             ((Y >= -0.5) & (Y <= 0.5) & (X <= self.underground_pipeline_length)) |
-            # Vertical connection
+            # Stationary pipeline (vertical section)
             ((X >= 39.5) & (X <= 40.5) & (Y <= 4) & (Y >= 0))
         )
         potential[pipeline_mask] = -0.85  # Base steel potential
@@ -193,96 +193,121 @@ class PigStationICCP:
         # Apply a hard limit to ensure no values go below -1.2V
         potential = np.maximum(potential, -1.2)
 
-        # Create figure for CP visualization
-        fig, ax = plt.subplots(figsize=(15, 8))
+        # Create figure for CP visualization with white background
+        fig, ax = plt.subplots(figsize=(15, 8), facecolor='white')
+        ax.set_facecolor('white')
 
-        # Plot potential contours
-        contour = ax.contourf(X, Y, potential, 20, cmap='viridis')
-        cbar = fig.colorbar(contour, ax=ax)
-        cbar.set_label('Potential (V vs CSE)')
+        # Define professional color map and discrete levels for better visualization
+        # Using a blue-green-yellow-red colormap similar to professional CP software
+        custom_cmap = plt.cm.get_cmap('RdYlBu_r')
 
-        # Draw pipelines
+        # Define specific potential levels for more professional appearance
+        levels = np.linspace(-1.2, -0.7, 15)
+
+        # Plot potential contours with smoother interpolation and cleaner appearance
+        contour = ax.contourf(X, Y, potential, levels=levels, cmap=custom_cmap, alpha=0.9)
+
+        # Add contour lines for better readability
+        contour_lines = ax.contour(X, Y, potential, levels=levels, colors='k', linewidths=0.5, alpha=0.3)
+
+        # Add protection criterion line with more prominence
+        protection_line = ax.contour(X, Y, potential, levels=[-0.85], colors='r',
+                                    linestyles='--', linewidths=2.5)
+        ax.clabel(protection_line, inline=True, fontsize=10, fmt='%1.2f V')
+
+        # Add a more professional colorbar
+        cbar = fig.colorbar(contour, ax=ax, pad=0.01)
+        cbar.set_label('Potential (V vs CSE)', fontsize=12)
+        cbar.ax.tick_params(labelsize=10)
+
+        # Draw pipelines with thicker, more visible lines
         receiver_x = [0, 30, 35, 40, 45, self.receiver_length + 45]
         receiver_y = [4, 4, 3.5, 3.5, 4, 4]
-        ax.plot(receiver_x, receiver_y, 'b-', linewidth=2, label='Pig Receiver')
+        ax.plot(receiver_x, receiver_y, 'b-', linewidth=3, label='Pig Receiver')
 
         # Launcher pipeline
         launcher_x = [0, 30, 35, 40, self.launcher_length + 40]
         launcher_y = [2, 2, 2.5, 2, 2]
-        ax.plot(launcher_x, launcher_y, 'g-', linewidth=2, label='Pig Launcher')
+        ax.plot(launcher_x, launcher_y, 'g-', linewidth=3, label='Pig Launcher')
 
-        # Underground pipeline
+        # Stationary pipeline (horizontal)
         ax.plot([0, self.underground_pipeline_length], [0, 0], 'r-',
-                linewidth=2, label='Underground Pipeline')
+                linewidth=3, label='Stationary Pipeline')
 
-        # Vertical connection
-        ax.plot([40, 40], [0, 4], 'k-', linewidth=2, label='Vertical Connection')
+        # Stationary pipeline (vertical section)
+        ax.plot([40, 40], [0, 4], 'r-', linewidth=3)
 
-        # Plot anodes with different colors based on material
+        # Plot anodes with more professional markers
         for anode_name, (x, y) in self.anodes.items():
-            ax.plot(x, y, 'bo', markersize=8)  # Blue for MMO-Ti
-            ax.text(x+0.5, y+0.5, anode_name, fontsize=8)
+            ax.plot(x, y, 'o', color='blue', markersize=10, markeredgecolor='black',
+                   markeredgewidth=1.5, zorder=5)
+            ax.text(x+0.5, y+0.5, anode_name, fontsize=9, fontweight='bold',
+                   bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', pad=1))
 
-        # Add legend for anode types
-        ax.plot([], [], 'bo', markersize=8, label='MMO-Ti Anode')
+        # Add legend with better formatting
+        legend = ax.legend(loc='upper right', framealpha=0.9, frameon=True,
+                          fontsize=10, facecolor='white')
+        legend.get_frame().set_edgecolor('gray')
 
-        # Add protection criterion line
-        ax.contour(X, Y, potential, levels=[-0.85], colors='r', linestyles='--',
-                   linewidths=2, label='Protection Criterion (-850mV)')
+        # Add grid with lighter appearance
+        ax.grid(True, linestyle='--', alpha=0.3, color='gray')
 
-        # Customize plot
+        # Customize plot with more professional appearance
         ax.set_xlim(-2, self.underground_pipeline_length+5)
         ax.set_ylim(-2, 6)
-        ax.set_title(f'Soil CP Simulation for Pig Station ({self.design_type.capitalize()} Design)')
-        ax.legend()
-        ax.grid(True)
-        ax.set_xlabel('Distance (meters)')
-        ax.set_ylabel('Lateral Position (meters)')
+        ax.set_title(f'Cathodic Protection Potential Distribution ({self.design_type.capitalize()} Design)',
+                    fontsize=14, fontweight='bold', pad=10)
+        ax.set_xlabel('Distance (meters)', fontsize=12)
+        ax.set_ylabel('Lateral Position (meters)', fontsize=12)
 
-        # Add mouse hover functionality with cursor position and potential value
-        # Replace the fixed position text with an annotation that follows the cursor
-        annot = ax.annotate("", xy=(0, 0), xytext=(10, 10),
-                           textcoords="offset points",
-                           bbox=dict(boxstyle="round", fc="white", alpha=0.8),
-                           arrowprops=dict(arrowstyle="->"))
-        annot.set_visible(False)
+        # Add border around the plot
+        for spine in ax.spines.values():
+            spine.set_linewidth(1.5)
+            spine.set_color('black')
 
-        def hover(event):
+        # Create a fixed measurement point (dot) that follows the mouse
+        measurement_dot = ax.plot([], [], 'o', markersize=8, color='green', alpha=0.8, zorder=10)[0]
+
+        # Create a fixed info box in the corner of the plot
+        info_box = ax.text(0.02, 0.02, "", transform=ax.transAxes, fontsize=10,
+                          bbox=dict(facecolor='white', alpha=0.8, edgecolor='black', pad=5),
+                          verticalalignment='bottom')
+
+        # Function to handle mouse movement
+        def on_mouse_move(event):
             if event.inaxes == ax:
-                x_val, y_val = event.xdata, event.ydata
-                if x_val is not None and y_val is not None:
-                    # Convert cursor position to array indices
-                    x_range = x[-1] - x[0]
-                    y_range = y[-1] - y[0]
+                # Get mouse coordinates
+                mouse_x, mouse_y = event.xdata, event.ydata
 
-                    # Calculate normalized position (0-1)
-                    x_norm = (x_val - x[0]) / x_range
-                    y_norm = (y_val - y[0]) / y_range
+                # Find the nearest grid point
+                x_idx = np.argmin(np.abs(np.linspace(0, self.underground_pipeline_length, 200) - mouse_x))
+                y_idx = np.argmin(np.abs(np.linspace(-2, 6, 160) - mouse_y))
 
-                    # Convert to indices
-                    x_idx = int(x_norm * (len(x) - 1))
-                    y_idx = int(y_norm * (len(y) - 1))
+                # Get the potential at that point (convert to mV)
+                pot_val = potential[y_idx, x_idx] * 1000
 
-                    # Ensure indices are within bounds
-                    x_idx = max(0, min(x_idx, len(x) - 1))
-                    y_idx = max(0, min(y_idx, len(y) - 1))
+                # Update the dot position
+                measurement_dot.set_data([mouse_x], [mouse_y])
 
-                    # Get potential value (convert to mV for display)
-                    pot_val = potential[y_idx, x_idx] * 1000
-
-                    # Update annotation position and text
-                    annot.xy = (x_val, y_val)
-                    annot.set_text(f'Position: ({x_val:.2f}m, {y_val:.2f}m)\nPotential: {pot_val:.1f} mV')
-                    annot.set_visible(True)
-                    fig.canvas.draw_idle()
+                # Set dot color based on protection status
+                if pot_val > -850:
+                    measurement_dot.set_color('red')  # Under-protected
+                    status = "Under-protected"
+                elif pot_val < -1200:
+                    measurement_dot.set_color('orange')  # Over-protected
+                    status = "Over-protected"
                 else:
-                    annot.set_visible(False)
-                    fig.canvas.draw_idle()
-            else:
-                annot.set_visible(False)
+                    measurement_dot.set_color('green')  # Optimally protected
+                    status = "Optimally protected"
+
+                # Update the info box
+                info_box.set_text(f"Position: ({mouse_x:.2f}m, {mouse_y:.2f}m)\nPotential: {pot_val:.1f} mV\nStatus: {status}")
+
+                # Redraw the canvas
                 fig.canvas.draw_idle()
 
-        fig.canvas.mpl_connect('motion_notify_event', hover)
+        # Connect the event handler
+        fig.canvas.mpl_connect('motion_notify_event', on_mouse_move)
 
         return fig, ax, potential
 
@@ -392,7 +417,7 @@ class PigStationICCP:
         # Draw pipelines
         ax.plot(receiver_x, receiver_y, 'k-', linewidth=2, label='Pig Receiver')
         ax.plot(launcher_x, launcher_y, 'k-', linewidth=2, label='Pig Launcher')
-        ax.plot([0, self.underground_pipeline_length], [0, 0], 'k-', linewidth=2, label='Underground Pipeline')
+        ax.plot([0, self.underground_pipeline_length], [0, 0], 'k-', linewidth=2, label='Stationary Pipeline')
         ax.plot([40, 40], [0, 4], 'k-', linewidth=2)
 
         # Plot anodes
@@ -521,7 +546,7 @@ class PigStationICCP:
         potentials = self.calculate_potentials(x)
         line, = ax.plot(x, potentials, 'b-', label='Protection Potential')
         ax.axhline(y=-850, color='r', linestyle='--', label='Protection Criterion')
-        ax.axhline(y=-1100, color='r', linestyle=':', label='Overprotection Threshold')
+        ax.axhline(y=-1200, color='r', linestyle=':', label='Overprotection Threshold')
         ax.set_xlabel('Distance (m)')
         ax.set_ylabel('Potential (mV vs CSE)')
         ax.set_title(f'Protection Potential Distribution ({self.design_type.capitalize()} Design)')
@@ -594,7 +619,7 @@ def compare_designs():
     line_orig, = ax.plot(x, original_potentials, 'b-', label='Original Design')
     line_opt, = ax.plot(x, optimized_potentials, 'g-', label='Optimized Design')
     ax.axhline(y=-850, color='r', linestyle='--', label='Protection Criterion')
-    ax.axhline(y=-1100, color='r', linestyle=':', label='Overprotection Threshold')
+    ax.axhline(y=-1200, color='r', linestyle=':', label='Overprotection Threshold')
     ax.set_xlabel('Distance (m)')
     ax.set_ylabel('Potential (mV vs CSE)')
     ax.set_title('Protection Potential Distribution Comparison')
@@ -641,12 +666,14 @@ def compare_designs():
     plt.show()
 
     # Calculate improvement metrics
+    # In display_analysis function
+    # Calculate improvement metrics
     original_under = np.sum(original_potentials > -850) / len(original_potentials) * 100
-    original_over = np.sum(original_potentials < -1100) / len(original_potentials) * 100
+    original_over = np.sum(original_potentials < -1200) / len(original_potentials) * 100
     original_optimal = 100 - original_under - original_over
 
     optimized_under = np.sum(optimized_potentials > -850) / len(optimized_potentials) * 100
-    optimized_over = np.sum(optimized_potentials < -1100) / len(optimized_potentials) * 100
+    optimized_over = np.sum(optimized_potentials < -1200) / len(optimized_potentials) * 100
     optimized_optimal = 100 - optimized_under - optimized_over
 
     # Create comparison report
